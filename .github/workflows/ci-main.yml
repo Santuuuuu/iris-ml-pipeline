@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
+  test-and-evaluate:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -25,10 +25,80 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install dvc dvc-gs pyyaml
+    
+    - name: Setup DVC
+      uses: iterative/setup-dvc@v1
+    
+    - name: Configure DVC remote
+      run: |
+        dvc remote add myremote ${{ secrets.DVC_REMOTE_URL }} || echo "Remote already exists"
+        dvc remote modify myremote --local gdrive_service_account_json_file_path ${{ secrets.DVC_CREDENTIALS }} || echo "Using default remote"
+    
+    - name: Pull data and model from DVC
+      run: |
+        dvc pull data/iris.csv models/iris_model.joblib || echo "No DVC data to pull yet"
+    
+    - name: Download and process data
+      run: |
+        python src/download_data.py
+    
+    - name: Train model with DVC
+      run: |
+        dvc repro || python src/train.py
     
     - name: Run all tests with coverage
       run: |
         python -m pytest tests/ -v --cov=src --cov-report=xml --cov-report=html
+    
+    - name: Run full evaluation
+      run: |
+        python -c "
+        import pandas as pd
+        import joblib
+        from src.evaluation import ModelEvaluator
+        from src.data_validation import DataValidator
+        
+        # Load data
+        df = pd.read_csv('data/iris.csv')
+        
+        # Validate data
+        validator = DataValidator()
+        is_valid, message = validator.validate_data(df)
+        print(f'Data Validation: {message}')
+        
+        if is_valid:
+            # Load or train model
+            try:
+                model = joblib.load('models/iris_model.joblib')
+                print('Model loaded from DVC')
+            except:
+                print('No model found in DVC, training new one...')
+                from src.model import IrisModel
+                model_wrapper = IrisModel()
+                results = model_wrapper.train(df)
+                model = model_wrapper.model
+                model_wrapper.save_model()
+            
+            # Prepare data for evaluation
+            X = df[['sepal_length', 'sepal_width', 'petal_length', 'petal_width']]
+            y = df['species'].map({'setosa': 0, 'versicolor': 1, 'virginica': 2})
+            
+            # Make predictions
+            y_pred = model.predict(X)
+            
+            # Evaluate
+            evaluator = ModelEvaluator()
+            metrics = evaluator.evaluate_model(y, y_pred)
+            evaluator.save_metrics('evaluation_metrics.json')
+            
+            print('Evaluation Metrics:')
+            for key, value in metrics.items():
+                print(f'  {key}: {value:.4f}')
+            
+            assert metrics['accuracy'] > 0.8, 'Model should achieve >80% accuracy'
+            print('✅ Evaluation completed successfully!')
+        "
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
@@ -37,9 +107,18 @@ jobs:
         flags: unittests
         name: codecov-umbrella
 
+    - name: Upload evaluation metrics
+      uses: actions/upload-artifact@v3
+      with:
+        name: evaluation-metrics
+        path: |
+          evaluation_metrics.json
+          metrics.json
+        retention-days: 30
+
   security-scan:
     runs-on: ubuntu-latest
-    needs: test
+    needs: test-and-evaluate
     
     steps:
     - uses: actions/checkout@v3
@@ -53,3 +132,10 @@ jobs:
       run: |
         pip install bandit
         bandit -r src/ -f html -o security_scan.html || true
+    
+    - name: Upload security scan
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-scan
+        path: security_scan.html
+        retention-days: 30

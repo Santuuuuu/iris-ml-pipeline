@@ -25,18 +25,61 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install dvc dvc-gs  # Add DVC with GCS support
+    
+    - name: Setup DVC
+      uses: iterative/setup-dvc@v1
+      with:
+        version: '3.0.0'
+    
+    - name: Configure DVC remote
+      run: |
+        dvc remote add myremote ${{ secrets.DVC_REMOTE_URL }} || echo "Remote already exists"
+        dvc remote modify myremote --local gdrive_service_account_json_file_path ${{ secrets.DVC_CREDENTIALS }} || echo "Using default remote"
+    
+    - name: Pull data and model from DVC
+      run: |
+        dvc pull data/iris.csv models/iris_model.joblib || echo "No DVC data to pull yet"
+    
+    - name: Download data if DVC pull fails
+      run: |
+        python src/download_data.py
     
     - name: Run data validation tests
       run: |
-        python -m pytest tests/test_data_validation.py -v
+        python -m pytest tests/test_data_validation.py -v --cov=src --cov-report=xml
     
     - name: Run model tests
       run: |
         python -m pytest tests/test_model.py -v
     
-    - name: Run all tests with coverage
+    - name: Run evaluation tests
       run: |
-        python -m pytest tests/ -v --cov=src --cov-report=xml
+        python -m pytest tests/test_evaluation.py -v
+    
+    - name: Run integration test
+      run: |
+        python -c "
+        import pandas as pd
+        from src.data_validation import DataValidator
+        from src.model import IrisModel
+        
+        # Load and validate data
+        df = pd.read_csv('data/iris.csv')
+        validator = DataValidator()
+        is_valid, message = validator.validate_data(df)
+        print(f'Data validation: {is_valid} - {message}')
+        
+        if is_valid:
+            # Train model
+            model = IrisModel()
+            results = model.train(df)
+            print(f'Training results: {results}')
+            
+            # Basic assertion
+            assert results['test_accuracy'] > 0.5, 'Model accuracy should be better than random'
+            print('Integration test passed!')
+        "
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
