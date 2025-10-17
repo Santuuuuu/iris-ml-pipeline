@@ -21,7 +21,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pandas scikit-learn pytest
+        pip install -r requirements.txt
         
     - name: Create test data
       run: |
@@ -39,16 +39,4 @@ jobs:
     
     - name: Run basic tests
       run: |
-        python -m pytest tests/test_always_passes.py -v
-    
-    - name: Run data validation test
-      run: |
-        python -c "
-        import pandas as pd
-        df = pd.read_csv('data/iris.csv')
-        print(f'Data loaded: {len(df)} rows, {len(df.columns)} columns')
-        print('Columns:', list(df.columns))
-        assert len(df) == 150, 'Should have 150 samples'
-        assert 'species' in df.columns, 'Should have species column'
-        print('✅ Data validation passed')
-        "
+        python -m pytest tests/ -v
