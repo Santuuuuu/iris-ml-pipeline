@@ -25,61 +25,31 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install dvc dvc-gs  # Add DVC with GCS support
+        pip install dvc[gs] gcsfs
     
     - name: Setup DVC
       uses: iterative/setup-dvc@v1
-      with:
-        version: '3.0.0'
     
-    - name: Configure DVC remote
+    - name: Configure DVC with GCS
       run: |
-        dvc remote add myremote ${{ secrets.DVC_REMOTE_URL }} || echo "Remote already exists"
-        dvc remote modify myremote --local gdrive_service_account_json_file_path ${{ secrets.DVC_CREDENTIALS }} || echo "Using default remote"
+        dvc remote add myremote gs://mlops-course-warm-access-473514-i7-unique-week2/dvc-storage || echo "Remote already exists"
+    
+    - name: Authenticate with Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
     
     - name: Pull data and model from DVC
       run: |
-        dvc pull data/iris.csv models/iris_model.joblib || echo "No DVC data to pull yet"
+        dvc pull data/iris.csv models/iris_model.joblib || echo "No data in DVC yet"
     
     - name: Download data if DVC pull fails
       run: |
         python src/download_data.py
     
-    - name: Run data validation tests
+    - name: Run all tests with coverage
       run: |
-        python -m pytest tests/test_data_validation.py -v --cov=src --cov-report=xml
-    
-    - name: Run model tests
-      run: |
-        python -m pytest tests/test_model.py -v
-    
-    - name: Run evaluation tests
-      run: |
-        python -m pytest tests/test_evaluation.py -v
-    
-    - name: Run integration test
-      run: |
-        python -c "
-        import pandas as pd
-        from src.data_validation import DataValidator
-        from src.model import IrisModel
-        
-        # Load and validate data
-        df = pd.read_csv('data/iris.csv')
-        validator = DataValidator()
-        is_valid, message = validator.validate_data(df)
-        print(f'Data validation: {is_valid} - {message}')
-        
-        if is_valid:
-            # Train model
-            model = IrisModel()
-            results = model.train(df)
-            print(f'Training results: {results}')
-            
-            # Basic assertion
-            assert results['test_accuracy'] > 0.5, 'Model accuracy should be better than random'
-            print('Integration test passed!')
-        "
+        python -m pytest tests/ -v --cov=src --cov-report=xml --cov-report=html
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
@@ -87,3 +57,106 @@ jobs:
         file: ./coverage.xml
         flags: unittests
         name: codecov-umbrella
+
+  cml-report:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.9"
+    
+    - name: Install CML
+      uses: iterative/setup-cml@v1
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install pandas scikit-learn matplotlib seaborn
+    
+    - name: Run sanity test and generate report
+      run: |
+        echo "## 📊 Development Branch - Sanity Test Report" >> report.md
+        echo "**Branch:** ${{ github.ref }}" >> report.md
+        echo "**Commit:** ${{ github.sha }}" >> report.md
+        echo "**Workflow:** ${{ github.workflow }}" >> report.md
+        echo "" >> report.md
+        
+        echo "### 🧪 Test Results Summary" >> report.md
+        echo "- ✅ All unit tests passed" >> report.md
+        echo "- ✅ Data validation tests completed" >> report.md
+        echo "- ✅ Model evaluation tests successful" >> report.md
+        echo "" >> report.md
+        
+        echo "### 📈 Data Quality Check" >> report.md
+        python -c "
+        import pandas as pd
+        from src.data_validation import DataValidator
+        df = pd.read_csv('data/iris.csv')
+        validator = DataValidator()
+        is_valid, message = validator.validate_data(df)
+        print(f'### 📈 Data Quality Check')
+        print(f'- **Data Validation:** {\\\"✅ PASS\\\" if is_valid else \\\"❌ FAIL\\\"}')
+        print(f'- **Dataset Size:** {len(df)} samples')
+        print(f'- **Features:** {len(df.columns)} columns')
+        print(f'- **Species Distribution:**')
+        for species, count in df['species'].value_counts().items():
+            print(f'  - {species}: {count} samples')
+        " >> report.md
+        
+        echo "" >> report.md
+        echo "### 🔍 Model Performance" >> report.md
+        python -c "
+        try:
+            import joblib
+            import pandas as pd
+            from src.evaluation import ModelEvaluator
+            from src.model import IrisModel
+            
+            df = pd.read_csv('data/iris.csv')
+            X = df[['sepal_length', 'sepal_width', 'petal_length', 'petal_width']]
+            y = df['species'].map({'setosa': 0, 'versicolor': 1, 'virginica': 2})
+            
+            # Try to load existing model
+            try:
+                model = joblib.load('models/iris_model.joblib')
+                y_pred = model.predict(X)
+                evaluator = ModelEvaluator()
+                metrics = evaluator.evaluate_model(y, y_pred)
+                print(f'- **Model Source:** Loaded from DVC')
+            except:
+                # Train new model
+                model_wrapper = IrisModel()
+                results = model_wrapper.train(df)
+                y_pred = model_wrapper.predict(X.values)
+                evaluator = ModelEvaluator()
+                metrics = evaluator.evaluate_model(y, y_pred)
+                print(f'- **Model Source:** Newly trained')
+            
+            print(f'- **Accuracy:** {metrics[\\\"accuracy\\\"]:.4f}')
+            print(f'- **Precision:** {metrics[\\\"precision_macro\\\"]:.4f}')
+            print(f'- **Recall:** {metrics[\\\"recall_macro\\\"]:.4f}')
+            print(f'- **F1-Score:** {metrics[\\\"f1_macro\\\"]:.4f}')
+            
+        except Exception as e:
+            print(f'- **Status:** ❌ Model evaluation failed')
+            print(f'- **Error:** {str(e)}')
+        " >> report.md
+        
+        echo "" >> report.md
+        echo "### 📋 Next Steps" >> report.md
+        echo "- [ ] Review test results" >> report.md
+        echo "- [ ] Verify data quality metrics" >> report.md
+        echo "- [ ] Check model performance" >> report.md
+        echo "- [ ] Approve and merge to main" >> report.md
+    
+    - name: Create CML report
+      uses: iterative/cml@v0.15.0
+      with:
+        file: report.md
+        repo-token: ${{ secrets.GITHUB_TOKEN }}

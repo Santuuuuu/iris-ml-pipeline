@@ -11,16 +11,13 @@ stages:
     deps:
       - data/iris.csv
       - src/train.py
+      - params.yaml
     params:
       - train.test_size
       - train.random_state
+      - train.n_estimators
     outs:
       - models/iris_model.joblib
     metrics:
       - metrics.json:
           cache: false
-
-params:
-  train:
-    test_size: 0.2
-    random_state: 42
