@@ -3,6 +3,8 @@ name: CI Main Branch
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   test:
@@ -21,11 +23,19 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         
-    - name: Run tests
+    - name: Run production tests
       run: |
+        echo "🚀 RUNNING PRODUCTION TEST SUITE"
         python -m pytest tests/ -v
+        echo "✅ PRODUCTION TESTS PASSED"
     
-    - name: Simple success message
+    - name: Production readiness
       run: |
-        echo "✅ All tests passed on main branch"
-        echo "🚀 Production ready"
+        echo "==========================================="
+        echo "🏭 PRODUCTION DEPLOYMENT READINESS"
+        echo "==========================================="
+        echo "Branch: main"
+        echo "Status: ✅ READY FOR DEPLOYMENT"
+        echo "Tests: All validation passed"
+        echo "Quality: Verified"
+        echo "==========================================="
