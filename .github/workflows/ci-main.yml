@@ -34,17 +34,18 @@ jobs:
     
     steps:
     - uses: actions/checkout@v3
-      
+        
     - name: CML Report
       uses: iterative/cml@v0.15.0
       with:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "## 🚀 Production Report" > report.md
+          echo "**Branch:** main" >> report.md
+          echo "**Commit:** ${{ github.sha }}" >> report.md
           echo "**Status:** ✅ Production ready!" >> report.md
-          echo "**Branch:** ${{ github.ref }}" >> report.md
           echo "" >> report.md
-          echo "### Quality Check" >> report.md
+          echo "### Deployment Readiness" >> report.md
           echo "- ✅ All tests passed" >> report.md
           echo "- ✅ Code quality verified" >> report.md
           echo "- ✅ Ready for deployment" >> report.md
