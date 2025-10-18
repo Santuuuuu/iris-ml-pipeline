@@ -18,13 +18,29 @@ jobs:
       with:
         python-version: "3.9"
     
-    - name: Install minimal dependencies
+    - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest
-    
-    - name: Run guaranteed tests
+        pip install -r requirements.txt
+        
+    - name: Test data creation and validation
       run: |
-        python -c "print('✅ Basic Python works')"
-        python -c "import pytest; print('✅ pytest imported')"
-        python -m pytest tests/test_always_passes.py -v
+        python -c "
+        import pandas as pd
+        from sklearn.datasets import load_iris
+        iris = load_iris()
+        df = pd.DataFrame(iris.data, columns=iris.feature_names)
+        df['species'] = iris.target
+        df.columns = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width', 'species']
+        print(f'✅ Data created: {len(df)} rows')
+        print(f'Columns: {list(df.columns)}')
+        "
+    
+    - name: Run all tests
+      run: |
+        python -m pytest tests/ -v --cov=src --cov-report=xml
+    
+    - name: Upload coverage
+      uses: codecov/codecov-action@v2
+      with:
+        file: ./coverage.xml
