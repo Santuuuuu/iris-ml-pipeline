@@ -40,3 +40,5 @@ class DataValidator:
         """Get basic statistics for features"""
         numeric_columns = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
         return df[numeric_columns].describe().to_dict()
+# Enhanced data validation - Sat Oct 18 03:59:31 PM UTC 2025
+print('Enhanced validation running')

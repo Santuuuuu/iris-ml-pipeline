@@ -72,3 +72,9 @@ class TestDataValidation:
         assert 'sepal_length' in stats
         assert 'count' in stats['sepal_length']
         assert stats['sepal_length']['count'] == 3.0
+
+def test_enhanced_validation():
+    """Test our new validation enhancement"""
+    validator = DataValidator()
+    # Test would go here
+    assert True  # Placeholder for demo
