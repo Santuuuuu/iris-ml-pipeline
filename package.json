@@ -1,0 +1,11 @@
+{
+  "name": "iris-ml-pipeline",
+  "version": "1.0.0",
+  "description": "IRIS ML Pipeline with CML reporting",
+  "scripts": {
+    "cml": "cml"
+  },
+  "dependencies": {
+    "@dvcorg/cml": "^0.15.0"
+  }
+}
