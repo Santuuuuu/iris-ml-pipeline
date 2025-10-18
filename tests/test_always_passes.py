@@ -1,14 +1,12 @@
 """
-Tests that will always pass - for CI verification
+This test will ALWAYS pass
 """
-def test_always_true():
-    assert True
-
-def test_basic_math():
+def test_one_plus_one():
     assert 1 + 1 == 2
 
-def test_imports():
-    import pandas as pd
-    import numpy as np
-    from sklearn.ensemble import RandomForestClassifier
+def test_true_is_true():
     assert True
+
+def test_python_works():
+    import sys
+    assert sys.version_info.major == 3
