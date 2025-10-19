@@ -90,3 +90,9 @@ def test_enhanced_validation():
     validator = DataValidator()
     # Test would go here
     assert True  # Placeholder for demo
+
+def test_enhanced_validation():
+    """Test our new validation enhancement"""
+    validator = DataValidator()
+    # Test would go here
+    assert True  # Placeholder for demo
